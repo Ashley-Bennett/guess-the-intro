@@ -1,10 +1,10 @@
 import axios from 'axios';
 import { useEffect, useState } from 'react';
-import { Helmet } from "react-helmet";
 import getClientId from './spotifyClientId';
 
 
 import './App.css';
+import Helmet from 'react-helmet';
 
 const CLIENT_ID = getClientId()
 
