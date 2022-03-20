@@ -4,7 +4,7 @@ import getClientId from './spotifyClientId';
 
 
 import './App.css';
-import Helmet from 'react-helmet';
+import { guessTimes } from './guessTimes';
 
 const CLIENT_ID = getClientId()
 
@@ -14,9 +14,6 @@ const App = () => {
   const RESPONSE_TYPE = "token"
   const SCOPE = "ugc-image-upload user-read-playback-state user-modify-playback-state user-read-currently-playing user-read-private user-read-email user-follow-modify user-follow-read user-library-modify user-library-read streaming app-remote-control user-read-playback-position user-top-read user-read-recently-played playlist-modify-private playlist-read-collaborative playlist-read-private playlist-modify-public"
 
-  const [token, setToken] = useState("")
-  const [searchKey, setSearchKey] = useState("")
-  const [artists, setArtists] = useState([])
 
   useEffect(() => {
     const hash = window.location.hash
@@ -33,7 +30,9 @@ const App = () => {
 
   }, [])
 
+  const [token, setToken] = useState("")
   const [playerIsPlaying, setPlayerIsPlaying] = useState(false)
+  const [totalGuesses, setTotalGuesses] = useState(0)
 
 
   const logout = () => {
@@ -41,38 +40,59 @@ const App = () => {
     window.localStorage.removeItem("token")
   }
 
-  const searchArtists = async (e) => {
-    e.preventDefault()
-    const { data } = await axios.get("https://api.spotify.com/v1/search", {
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      params: {
-        q: searchKey,
-        type: "artist"
-      }
-    })
-
-    setArtists(data.artists.items)
-  }
-
   const handlePlay = async () => {
-    const { data } = await axios.put("https://api.spotify.com/v1/me/player/play", {}, {
+    await axios.put("https://api.spotify.com/v1/me/player/play", {}, {
       headers: {
         'Authorization': `Bearer ${token}`
       },
     })
-    console.log(data);
+    setPlayerIsPlaying(true)
+    stopIntro()
   }
 
-  const renderArtists = () => {
-    return artists.map(artist => (
-      <div key={artist.id}>
-        {artist.images.length ? <img width={"100%"} src={artist.images[0].url} alt="" /> : <div>No Image</div>}
-        {artist.name}
-      </div>
-    ))
+  const handleStop = async () => {
+    await axios.put("https://api.spotify.com/v1/me/player/pause", {}, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+    })
+    handleSetToStart()
   }
+
+  const handleSetToStart = async () => {
+    await axios.put("https://api.spotify.com/v1/me/player/seek", {}, {
+      params: {
+
+        "position_ms": 0
+      },
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+    })
+    setPlayerIsPlaying(false)
+  }
+
+  const stopIntro = () => {
+    setTimeout(() => {
+      handleStop()
+    }, guessTimes[totalGuesses]);
+  }
+
+  const handleAddGuess = () => {
+    setTotalGuesses(totalGuesses + 1)
+  }
+
+  const handleSkipSong = async () => {
+    await axios.post("https://api.spotify.com/v1/me/player/next", {}, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+    })
+    handleStop()
+    setTotalGuesses(0)
+  }
+
+
 
   return (
     <div className="App">
@@ -83,56 +103,11 @@ const App = () => {
             to Spotify</a>
           : <button onClick={logout}>Logout</button>}
         {playerIsPlaying ?
-          <button>Stop</button>
+          <button onClick={handleStop}>Stop</button>
           : <button onClick={handlePlay}>Play</button>}
-        <form onSubmit={searchArtists}>
-          <input type="text" onChange={e => setSearchKey(e.target.value)} />
-          <button type={"submit"}>Search</button>
-        </form>
-        <button id='togglePlay'>toggle play</button>
-        {renderArtists()}
+        <button onClick={handleAddGuess}>Give me more</button>
+        <button onClick={handleSkipSong}>Another One!</button>
       </header>
-      <Helmet>
-        <script src="https://sdk.scdn.co/spotify-player.js"></script>
-        <script>{`
-        window.onSpotifyWebPlaybackSDKReady = () => {
-            const token = '${token}';
-          const player = new Spotify.Player({
-            name: 'Web Playback SDK Quick Start Player',
-                getOAuthToken: cb => {cb(token); },
-          volume: 0.5
-            });
-
-          // Ready
-          player.addListener('ready', ({device_id}) => {
-            console.log('Ready with Device ID', device_id);
-            });
-
-          // Not Ready
-          player.addListener('not_ready', ({device_id}) => {
-            console.log('Device ID has gone offline', device_id);
-            });
-
-          player.addListener('initialization_error', ({message}) => {
-            console.error(message);
-            });
-
-          player.addListener('authentication_error', ({message}) => {
-            console.error(message);
-            });
-
-          player.addListener('account_error', ({message}) => {
-            console.error(message);
-            });
-
-          document.getElementById('togglePlay').onclick = function() {
-            player.togglePlay();
-            };
-
-          player.connect();
-        }
-        `}</script>
-      </Helmet>
     </div>
   );
 }
